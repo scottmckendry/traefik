@@ -1,0 +1,80 @@
+http:
+  middlewares:
+    auth:
+      forwardAuth:
+        address: "http://auth:4181" # Make sure you have the OAuth service in docker-compose.yml
+        trustForwardHeader: true
+        authResponseHeaders:
+          - "X-Forwarded-User"
+
+    ratelimit:
+      ratelimit:
+        average: 100
+        burst: 50
+        
+    ipWhiteList:
+      ipWhiteList:
+        sourceRange:
+          - "192.168.1.0/24"
+          - "172.16.1.0/24"
+
+    deafultHeaders:
+      headers:
+        frameDeny: true
+        sslRedirect: true
+        browserXssFilter: true
+        contentTypeNosniff: true
+        forceSTSHeader: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 15552000
+        customFrameOptionsValue: SAMEORIGIN
+        customRequestHeaders:
+          X-Forwarded-Proto: https
+
+  routers:
+    router:
+      entrypoints:
+        - "https"
+      rule: "Host(`router.nyx.scottmckendry.tech`)"
+      middlewares:
+        - ratelimit
+        - ipWhiteList
+        - auth
+        - deafultHeaders
+      tls: {}
+      service: router
+    proxmox:
+      entrypoints:
+        - "https"
+      rule: "Host(`proxmox.nyx.scottmckendry.tech`)"
+      middlewares:
+        - ratelimit
+        - ipWhiteList
+        - auth
+        - deafultHeaders
+      tls: {}
+      service: proxmox
+    homeassistant:
+      entrypoints:
+        - "https"
+      rule: "Host(`ha.nyx.scottmckendry.tech`)"
+      middlewares:
+        - ratelimit
+        - ipWhiteList
+        - deafultHeaders
+      tls: {}
+      service: homeassistant
+  services:
+    router:
+      loadBalancer:
+        servers:
+          - url: "https://192.168.1.1"
+    proxmox:
+      loadBalancer:
+        servers:
+          - url: "https://192.168.1.10:8006"
+    homeassistant:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.3:8123"

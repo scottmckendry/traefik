@@ -1,0 +1,66 @@
+version: "3"
+services:
+  traefik:
+    image: traefik:latest
+    container_name: traefik
+    networks:
+      - traefik
+    environment:
+      - CF_API_EMAIL=${CloudflareEmail}
+      - CF_API_KEY=${CloudflareAPIKey}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/locatime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/traefik.yml:ro
+      - ./traefik/acme.json:/acme.json
+      - ./traefik/dynamic:/dynamic:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.entrypoints=http"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.nyx.scottmckendry.tech`)"
+      - "traefik.http.middlewares.traefik-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.sslheader.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.routers.traefik.middlewares=traefik-https-redirect"
+      - "traefik.http.routers.traefik-secure.entrypoints=https"
+      - "traefik.http.routers.traefik-secure.rule=Host(`traefik.nyx.scottmckendry.tech`)"
+      - "traefik.http.routers.traefik-secure.tls=true"
+      - "traefik.http.routers.traefik-secure.tls.certresolver=cloudflare"
+      - "traefik.http.routers.traefik-secure.tls.domains[0].main=nyx.scottmckendry.tech"
+      - "traefik.http.routers.traefik-secure.tls.domains[0].sans=*.nyx.scottmckendry.tech"
+      - "traefik.http.routers.traefik-secure.service=api@internal"
+      - "traefik.http.routers.traefik-secure.middlewares=ipWhiteList@file, auth@file"
+    restart: unless-stopped
+
+  auth:
+    container_name: auth
+    image: thomseddon/traefik-forward-auth:latest
+    depends_on:
+      - traefik
+    networks:
+      - traefik
+    environment:
+      - DEFAULT_PROVIDER=oidc
+      - PROVIDERS_OIDC_ISSUER_URL=https://sts.windows.net/${o365TenantId}/
+      - PROVIDERS_OIDC_CLIENT_ID=${AuthAppRegistrationId}
+      - PROVIDERS_OIDC_CLIENT_SECRET=${AuthAppRegistrationSecret}
+      - SECRET=${AuthSecret}
+      - COOKIE_DOMAIN=scottmckendry.tech
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth.entrypoints=http"
+      - "traefik.http.routers.auth.rule=Host(`aad.nyx.scottmckendry.tech`)"
+      - "traefik.http.middlewares.auth-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.auth.middlewares=auth-https-redirect"
+      - "traefik.http.routers.auth-secure.entrypoints=https"
+      - "traefik.http.routers.auth-secure.rule=Host(`aad.nyx.scottmckendry.tech`)"
+      - "traefik.http.routers.auth-secure.tls=true"
+      - "traefik.http.routers.auth-secure.service=auth"
+      - "traefik.http.services.auth.loadbalancer.server.port=4181"
+      - "traefik.docker.network=traefik"
+    restart: unless-stopped
+networks:
+  traefik:
+    external: true
