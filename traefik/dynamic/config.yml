@@ -15,7 +15,7 @@ http:
     ipWhiteList:
       ipWhiteList:
         sourceRange:
-          - "192.168.1.0/24"
+          - "192.168.0.0/16"
           - "172.16.1.0/24"
 
     deafultHeaders:
