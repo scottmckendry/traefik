@@ -15,6 +15,7 @@ http:
     ipWhiteList:
       ipWhiteList:
         sourceRange:
+          - "10.0.0.0/16"
           - "192.168.0.0/16"
           - "172.16.1.0/24"
 
@@ -33,17 +34,6 @@ http:
           X-Forwarded-Proto: https
 
   routers:
-    router:
-      entrypoints:
-        - "https"
-      rule: "Host(`router.nyx.scottmckendry.tech`)"
-      middlewares:
-        - ratelimit
-        - ipWhiteList
-        - auth
-        - deafultHeaders
-      tls: {}
-      service: router
     proxmox:
       entrypoints:
         - "https"
@@ -66,15 +56,48 @@ http:
       tls: {}
       service: homeassistant
   services:
-    router:
-      loadBalancer:
-        servers:
-          - url: "https://192.168.1.1"
     proxmox:
       loadBalancer:
         servers:
-          - url: "https://192.168.1.10:8006"
+          - url: "https://10.0.20.1:8006"
     homeassistant:
       loadBalancer:
         servers:
-          - url: "http://192.168.1.3:8123"
+          - url: "http://10.0.30.2:8123"
+tcp:
+  middlewares:
+    ipWhiteList:
+      ipWhiteList:
+        sourceRange:
+          - "10.0.0.0/16"
+          - "192.168.0.0/16"
+          - "172.16.1.0/24"
+
+  routers:
+    axis-forward-https:
+      entrypoints:
+        - "https"
+      middlewares:
+        - ipWhiteList
+      rule: HostSNIRegexp(`^.+\.axis\.scottmckendry\.tech$`)
+      tls:
+        passthrough: true
+      service: axis-forward-https
+    axis-forward-http:
+      entrypoints:
+        - "http"
+      middlewares:
+        - ipWhiteList
+      rule: HostSNIRegexp(`^.+\.axis\.scottmckendry\.tech$`)
+      service: axis-forward-http
+      tls:
+        passthrough: true
+  services:
+    axis-forward-https:
+      loadBalancer:
+        servers:
+          - address: "10.0.10.1:443"
+    axis-forward-http:
+      loadBalancer:
+        servers:
+          - address: "10.0.10.1:80"
